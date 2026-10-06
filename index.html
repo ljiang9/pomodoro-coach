@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>pomodoro-coach · 番茄钟与复盘</title>
+<style>
+  body { font-family:-apple-system,"PingFang SC",sans-serif; background:#f5f6f8; margin:0; padding:24px; color:#1f2329; text-align:center; }
+  h1 { font-size:20px; }
+  #clock { font-size:64px; font-weight:bold; margin:16px 0; }
+  button { background:#2f6fed; color:#fff; border:none; border-radius:8px; padding:10px 18px; cursor:pointer; margin:0 4px; }
+  button.ghost { background:#e5e7eb; color:#1f2329; }
+  #advice { background:#fff; border:1px solid #e2e5ea; border-radius:10px; padding:12px; margin-top:16px; font-size:14px; text-align:left; }
+</style>
+</head>
+<body>
+  <h1>番茄钟教练</h1>
+  <div id="clock">25:00</div>
+  <button onclick="startTimer()">开始</button>
+  <button onclick="pauseTimer()" class="ghost">暂停</button>
+  <button onclick="resetTimer()" class="ghost">重置</button>
+  <div id="advice">完成几个番茄后，这里会给复盘建议。</div>
+
+<!-- POMO_LOGIC_BEGIN -->
+<script>
+// ===== 纯函数：统计与复盘建议（Node 断言）=====
+function computeStats(records) {
+  // records: [{minutes, completed}]，completed=true 表示完成一个番茄。
+  const total = records.length;
+  const done = records.filter(r => r.completed).length;
+  const totalMin = records.filter(r=>r.completed).reduce((a,r)=>a+r.minutes,0);
+  return { total, done, totalMin, rate: total ? done/total : 0 };
+}
+
+function advise(stats) {
+  if (stats.total === 0) return "先开始第一个番茄钟吧。";
+  if (stats.done === 0) return "还没有完成的番茄，试着把目标切小一点。";
+  if (stats.rate < 0.5) return "完成率偏低，建议缩短单段时长或减少干扰。";
+  if (stats.done >= 8) return "很棒！今天已完成 " + stats.done + " 个番茄，注意休息。";
+  return "不错，已完成 " + stats.done + " 个番茄，继续保持。";
+}
+// ===== POMO_LOGIC_END =====
+
+let remaining = 25*60, timer = null, records = [];
+
+function load() { try { records = JSON.parse(localStorage.getItem("pomo_records")||"[]"); } catch { records=[]; } }
+function save() { localStorage.setItem("pomo_records", JSON.stringify(records)); }
+
+function render() {
+  const m = String(Math.floor(remaining/60)).padStart(2,"0");
+  const s = String(remaining%60).padStart(2,"0");
+  document.getElementById("clock").textContent = m+":"+s;
+}
+
+function startTimer() {
+  if (timer) return;
+  timer = setInterval(() => {
+    remaining--; render();
+    if (remaining <= 0) {
+      clearInterval(timer); timer=null;
+      records.push({ minutes:25, completed:true }); save();
+      remaining = 25*60; render(); review();
+    }
+  }, 1000);
+}
+function pauseTimer(){ if(timer){clearInterval(timer);timer=null;} }
+function resetTimer(){ pauseTimer(); remaining=25*60; render(); }
+
+function review() {
+  document.getElementById("advice").textContent = advise(computeStats(records));
+}
+
+load(); render();
+</script>
+</body>
+</html>
